@@ -2,6 +2,7 @@
 Abaqus Python script to create a voxelized cuboid model for diffusion analysis with
 spherical inclusions from CSV coordinate data.
 """
+import traceback
 from abaqus import *
 from abaqusConstants import *
 import regionToolset
@@ -62,7 +63,8 @@ def create_materials(model, radii):
     
     # Inclusion materials with radius-dependent properties
     for radius in radii:
-        material_name = f'Inclusion_Material_{str(radius).replace(".", "_")}'
+        radius_str = str(radius).replace(".", "_")
+        material_name = f'Inclusion_Material_{radius_str}'
         
         # Scale diffusivity and solubility based on radius
         # Adjust these scaling factors based on your specific material behavior
@@ -73,19 +75,51 @@ def create_materials(model, radii):
         incl_mat.Diffusivity(table=((MATRIX_DIFFUSIVITY * diffusivity_factor, ), ))
         incl_mat.Solubility(table=((MATRIX_SOLUBILITY * solubility_factor, ), ))
     
-        model.HomogeneousSolidSection(name=f'Inclusion_Section_{radius}', 
+        model.HomogeneousSolidSection(name=f'Inclusion_Section_{radius_str}', 
                                       material=material_name, 
                                       thickness=None)
     return
 
-def assign_elements_to_inclusions(model, part, assembly, inclusions):
+def assign_materials_to_part(part, assembly, inclusions, radii):
+    """Assign materials to part before meshing"""
+    # Create a set for the entire part (matrix material)
+    all_cells = part.cells
+    part.Set(cells=all_cells, name='Matrix_Set')
+    part.SectionAssignment(region=part.sets['Matrix_Set'], sectionName='Matrix_Section')
+    
+    # After meshing, we'll handle the inclusions as element sets
+    return
+
+def assign_elements_to_inclusions(part, assembly_instance, inclusions, radii):
     """Identify elements within each inclusion and assign appropriate material"""
     # Get all elements in the mesh
     all_elements = part.elements
     print(f"Total number of elements: {len(all_elements)}")
     
-    # Create sets for each inclusion
-    for idx, (x, y, z, radius) in enumerate(inclusions):
+    # Get element centroids (using element connectivity and node coordinates)
+    element_centroids = {}
+    for element in all_elements:
+        # Get nodes of the element
+        element_nodes = element.getNodes()
+        # Calculate centroid as average of node coordinates
+        sum_x, sum_y, sum_z = 0.0, 0.0, 0.0
+        for node in element_nodes:
+            coords = node.coordinates
+            sum_x += coords[0]
+            sum_y += coords[1]
+            sum_z += coords[2]
+        num_nodes = len(element_nodes)
+        element_centroids[element.label] = (sum_x/num_nodes, sum_y/num_nodes, sum_z/num_nodes)
+    
+    # Track assigned elements to avoid overlapping assignments
+    assigned_elements = set()
+    
+    # Process inclusions in order of decreasing radius (larger inclusions first)
+    inclusion_data = [(idx, x, y, z, r) for idx, (x, y, z, r) in enumerate(inclusions)]
+    sorted_inclusions = sorted(inclusion_data, key=lambda x: x[4], reverse=True)
+    
+    # Create sets for each inclusion and assign materials
+    for idx, x, y, z, radius in sorted_inclusions:
         # Create a set name for this inclusion
         set_name = f'Inclusion_Set_{idx}'
         
@@ -93,9 +127,12 @@ def assign_elements_to_inclusions(model, part, assembly, inclusions):
         inclusion_elements = []
         
         for element in all_elements:
+            # Skip already assigned elements
+            if element.label in assigned_elements:
+                continue
+                
             # Get element centroid
-            centroid = element.getCentroid(GLOBAL)
-            centroid_x, centroid_y, centroid_z = centroid[0][0], centroid[0][1], centroid[0][2]
+            centroid_x, centroid_y, centroid_z = element_centroids[element.label]
             
             # Calculate distance from centroid to inclusion center
             distance = ((centroid_x - x)**2 + (centroid_y - y)**2 + (centroid_z - z)**2)**0.5
@@ -103,22 +140,27 @@ def assign_elements_to_inclusions(model, part, assembly, inclusions):
             # If centroid is within inclusion radius, add to set
             if distance <= radius:
                 inclusion_elements.append(element)
+                assigned_elements.add(element.label)  # Mark as assigned
         
         # If we found elements within this inclusion, create a set and assign material
         if inclusion_elements:
-            inclusion_set = part.Set(elements=mesh.MeshElementArray(inclusion_elements), name=set_name)
-            part_set_name = f'Inclusion_Set_{idx}'
-            assembly_region = assembly.instances['Cuboid-1'].sets[part_set_name]
+            # Create a set in the part
+            element_array = mesh.MeshElementArray(inclusion_elements)
+            part.Set(elements=element_array, name=set_name)
             
-            # Assign the appropriate material section to this inclusion set
-            assembly.SectionAssignment(region=assembly_region, 
-                                     sectionName=f'Inclusion_Section_{radius}',
-                                     offset=0.0, 
-                                     offsetType=MIDDLE_SURFACE)
+            # Set the section for this inclusion set
+            radius_str = str(radius).replace(".", "_")
+            section_name = f'Inclusion_Section_{radius_str}'
+            
+            # Assign the section to the element set at the part level
+            part.SectionAssignment(region=part.sets[set_name], sectionName=section_name)
             
             print(f"Assigned {len(inclusion_elements)} elements to inclusion {idx} with radius {radius}")
     
+    # Report stats
+    print(f"Total assigned elements: {len(assigned_elements)} of {len(all_elements)}")
     return
+
 
 # ====== MAIN MODEL CREATION ======
 def create_voxelized_diffusion_model():
@@ -140,6 +182,9 @@ def create_voxelized_diffusion_model():
     # Create materials and sections
     create_materials(model, radii)
     
+    # Assign matrix material to the entire part before meshing
+    assign_materials_to_part(cuboid_part, model.rootAssembly, inclusions, radii)
+    
     # Create voxelized mesh
     elem_type = mesh.ElemType(elemCode=DC3D8)
     cuboid_part.setElementType(regions=(cuboid_part.cells,), elemTypes=(elem_type,))
@@ -150,43 +195,9 @@ def create_voxelized_diffusion_model():
     assembly = model.rootAssembly
     cuboid_instance = assembly.Instance(name='Cuboid-1', part=cuboid_part, dependent=ON)
     
-    # Create a set for the entire model (initially all matrix material)
-    all_cells = cuboid_instance.cells
-    assembly.Set(cells=all_cells, name='All_Cells')
-    
-    # Assign matrix material to all cells initially
-    region = assembly.sets['All_Cells']
-    assembly.SectionAssignment(region=region, sectionName='Matrix_Section', 
-                              offset=0.0, offsetType=MIDDLE_SURFACE)
-    
     # Assign elements to inclusions
-    # Note: In a real implementation, you'd need to implement the assign_elements_to_inclusions function
-    # Here we just demonstrate the concept with a placeholder
-    assign_elements_to_inclusions(model, cuboid_part, assembly, inclusions)
-    '''
-    # Instead of the function above, here's a more direct Abaqus implementation approach:
-    for idx, (x, y, z, radius) in enumerate(inclusions):
-        # Create a set for elements within this inclusion
-        elements_in_sphere = []
-        
-        # This is a placeholder for the actual Abaqus API calls
-        # In a real implementation, you'd need to:
-        # 1. Get all elements in the mesh
-        # 2. Calculate centroids
-        # 3. Check if centroids are within the sphere
-        # 4. Create sets and assign materials
-        
-        # Create a field to identify elements within the sphere
-        # You would need to implement custom code for this in Abaqus API
-        print(f"Processing inclusion {idx} at ({x}, {y}, {z}) with radius {radius}")
-        
-        # Example approach with a spherical partition (not actually used for voxelized model)
-        # This is just to illustrate where you'd implement element selection logic
-        sphere_center = (x, y, z)
-        
-        # Assign the appropriate inclusion material to elements in this set
-        # Assembly.SectionAssignment call would go here
-    '''
+    assign_elements_to_inclusions(cuboid_part, cuboid_instance, inclusions, radii)
+    
     # Create a mass diffusion step
     model.MassDiffusionStep(name='DiffusionStep', 
                            previous='Initial',
@@ -240,4 +251,7 @@ def create_voxelized_diffusion_model():
 
 # Execute the main function when script is run
 if __name__ == "__main__":
-    create_voxelized_diffusion_model()
+    try:
+        create_voxelized_diffusion_model()
+    except Exception as e:
+        traceback.print_exc()
