@@ -31,7 +31,7 @@ TOTAL_TIME = 1000.0          # Total simulation time
 INITIAL_TIME_INCREMENT = 10.0 # Initial time increment
 
 # File path for inclusion data
-CSV_FILE_PATH = 'inclusions.csv'  # Format: x,y,z,radius
+CSV_FILE_PATH = 'C:/Users/franke/source/repos/JCFranke2023/RVE/inclusions.csv'  # Format: x,y,z,radius
 
 # ====== HELPER FUNCTIONS ======
 def read_inclusion_data(file_path):
@@ -39,14 +39,13 @@ def read_inclusion_data(file_path):
     inclusions = []
     radii = []
     with open(file_path, 'r') as f:
-        reader = csv.reader(f)
+        reader = csv.reader(f, delimiter=' ')
         next(reader, None)  # Skip header if present
         for row in reader:
-            if len(row) >= 4:
-                x, y, z, r = float(row[0]), float(row[1]), float(row[2]), float(row[3])
-                inclusions.append((x, y, z, r))
-                if r not in radii:
-                    radii.append(r)
+            x, y, z, r = float(row[0]), float(row[1]), float(row[2]), float(row[4]) # csv file contains 5 columns, data on implementation depth is not needed here
+            inclusions.append((x, y, z, r))
+            if r not in radii:
+                radii.append(r)
     return inclusions, radii
 
 def create_materials(model, radii):
@@ -63,7 +62,7 @@ def create_materials(model, radii):
     
     # Inclusion materials with radius-dependent properties
     for radius in radii:
-        material_name = f'Inclusion_Material_{radius}'
+        material_name = f'Inclusion_Material_{str(radius).replace(".", "_")}'
         
         # Scale diffusivity and solubility based on radius
         # Adjust these scaling factors based on your specific material behavior
@@ -142,7 +141,7 @@ def create_voxelized_diffusion_model():
     create_materials(model, radii)
     
     # Create voxelized mesh
-    elem_type = mesh.ElemType(elemCode=DC3D8, technique=STANDARD)
+    elem_type = mesh.ElemType(elemCode=DC3D8)
     cuboid_part.setElementType(regions=(cuboid_part.cells,), elemTypes=(elem_type,))
     cuboid_part.seedPart(size=VOXEL_SIZE)
     cuboid_part.generateMesh()

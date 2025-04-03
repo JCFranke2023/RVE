@@ -114,35 +114,9 @@ Die Folgenden Funktionen sind noch zu implementieren:
 #########################################################
 #########################################################
 '''
-cube_material_name = 'CubeMaterial'
-cube_section_name = 'CubeSection'
 
 
-
-bulk_diffusion_coefficient = 1.3 * 1e-3
-bulk_solubility_coefficient = 1.0 * 1e-18
-bulk_density = 1.0 * 1e-27
-
-pore_solubility_coefficient = 1.0 * 1e-18
-
-thickness = 5
-sub_path = f'{thickness} nm'
-
-# Ordner mit CSV-Dateien
-csv_folder = f'./raw_data/PlasmaTech25/{sub_path}/Pore List/'
-
-# Durch alle CSV-Dateien iterieren
-csv_files = [f for f in os.listdir(csv_folder) if f.endswith('.csv')]
-
-#Counter fuer die Simulationen
-simulation_counter = 1
-
-# Erstellt Ordner fuer Ergebnisse
-current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-results_folder = os.path.join(f'./results/PlasmaTech25/{sub_path}/', f"{current_datetime}")
-os.makedirs(results_folder, exist_ok=True)
-
-def setup_abaqus_environment(csv_file):
+def setup_abaqus_environment(csv_folder, csv_file):
     filename = os.path.join(csv_folder, csv_file)
     try:
         simulation_id = csv_file.split('list_')[1].split('_')[0]  # Nimmt den Teil nach 'list_' bis zum naechsten '_'
@@ -244,15 +218,15 @@ def define_cube_material(m, material_name):
     )
 
     m.materials[material_name].Diffusivity(
-        table=((bulk_diffusion_coefficient,),)  #Diffusionskoeffizient, der die Geschwindigkeit bestimmt Einheit: [nm^2/s]
+        table=((1.3 * 1e-3,),)  #Diffusionskoeffizient, der die Geschwindigkeit bestimmt Einheit: [nm^2/s]
     )
 
     m.materials[material_name].Solubility(
-        table=((bulk_solubility_coefficient,),)  #Loeslichkeit Einheit: [
+        table=((1.0 * 1e-18,),)  #Loeslichkeit Einheit: [
     )
 
     m.materials[material_name].Density(
-        table=((bulk_density,),)  #Dichte [kg/nm^3]
+        table=((1.0 * 1e-27,),)  #Dichte [kg/nm^3]
     )
     
 def create_cube_part(m, lateral_cube_size, max_radius):
@@ -399,7 +373,7 @@ def init_pores(m, Inclusions):
         m.materials[material_name].Diffusivity(
             table=((diffusion_coefficient,),)
         )
-        solubility_coefficient = pore_solubility_coefficient
+        solubility_coefficient = 1.0 * 1e-18
         m.materials[material_name].Solubility(
             table=((solubility_coefficient,),)
         )
@@ -1206,7 +1180,7 @@ def define_node_sets(m, max_radius, lateral_cube_size):
 
     mat_part.Set(nodes=nodes, name='NSET_Mat_Surface')
     
-def finalize_abaqus_job(m, setup_data):
+def finalize_abaqus_job(m, setup_data, simulation_counter):
         ###### Im Folgenden Abschnitt werden ausgaben angefragt, der Job erstellt und die Leistungs reservierung definiert ########
 
     #Anfragen der gewuenschten Ergebnisse
@@ -1283,22 +1257,39 @@ def finalize_abaqus_job(m, setup_data):
 
     end_time = time.time()
     total_time = end_time - setup_data['start_time']
-    print(f"Simulation {simulation_counter}. was running {total_time:.2f} seconds.")
+    print(f"Simulation {simulation_counter} was running {total_time:.2f} seconds.")
 
-    simulation_counter = simulation_counter + 1
 
-for csv_file in csv_files:
-    setup_data = setup_abaqus_environment(csv_file)
-    m = setup_data['m']
-    Inclusions, lateral_cube_size, max_radius = define_cube_dimensions(setup_data)
-    create_cube_part(m, lateral_cube_size, max_radius)
-    instances_list = init_pores(m, Inclusions)
-    combined_part = merge_cube_and_pores(m, lateral_cube_size)
-    assembly = setup_boundary_conditions(m, lateral_cube_size)
-    generate_mesh(combined_part)
-    define_node_sets(m, max_radius, lateral_cube_size)
-    PeriodicBound3D(mdb, setup_data['ModelName'], "NSET_Mat_Surface", lateral_cube_size)
-    finalize_abaqus_job(m, setup_data)
+if __name__ == "__main__":
+    cube_material_name = 'CubeMaterial'
+    cube_section_name = 'CubeSection'
+
+    thickness = 5
+    sub_path = f'{thickness} nm'
+
+    # Ordner mit CSV-Dateien
+    csv_folder = f'C:/Users/franke/source/repos/JCFranke2023/RVE/raw_data/PlasmaTech25/{sub_path}/Pore List/'
+
+    # Durch alle CSV-Dateien iterieren
+    csv_files = [f for f in os.listdir(csv_folder) if f.endswith('.csv')]
+
+    # Erstellt Ordner fuer Ergebnisse
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    results_folder = os.path.join(f'C:/Users/franke/source/repos/JCFranke2023/RVE/results/PlasmaTech25/{sub_path}/', f"{current_datetime}")
+    os.makedirs(results_folder, exist_ok=True)
+
+    for simulation_counter, csv_file in enumerate(csv_files):
+        setup_data = setup_abaqus_environment(csv_folder, csv_file)
+        m = setup_data['m']
+        Inclusions, lateral_cube_size, max_radius = define_cube_dimensions(setup_data)
+        create_cube_part(m, lateral_cube_size, max_radius)
+        instances_list = init_pores(m, Inclusions)
+        combined_part = merge_cube_and_pores(m, lateral_cube_size)
+        assembly = setup_boundary_conditions(m, lateral_cube_size)
+        generate_mesh(combined_part)
+        define_node_sets(m, max_radius, lateral_cube_size)
+        PeriodicBound3D(mdb, setup_data['ModelName'], "NSET_Mat_Surface", lateral_cube_size)
+        finalize_abaqus_job(m, setup_data, simulation_counter)
 
 
 
@@ -1387,6 +1378,4 @@ for csv_file in csv_files:
 
     #Funktionsaufruf
 
-
-
-print(f"All {simulation_counter-1} Simulations finished successfully")
+print(f"All {simulation_counter + 1} Simulations finished successfully")
