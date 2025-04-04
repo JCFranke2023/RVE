@@ -20,15 +20,15 @@ MODEL_HEIGHT = 5  # Z dimension
 VOXEL_SIZE = 0.2      # Size of each voxel element
 
 # Material properties
-MATRIX_DIFFUSIVITY = 1.0e-9  # Diffusion coefficient for matrix
+MATRIX_DIFFUSIVITY = 1.0e-7  # Diffusion coefficient for matrix
 MATRIX_SOLUBILITY = 0.5      # Solubility coefficient for matrix
 
 # Boundary conditions - concentrations
-TOP_CONCENTRATION = 1.0      # Normalized concentration at top surface
+TOP_CONCENTRATION = 10.0      # Normalized concentration at top surface
 BOTTOM_CONCENTRATION = 0.0   # Normalized concentration at bottom surface
 
 # Analysis parameters
-TOTAL_TIME = 1000.0          # Total simulation time
+TOTAL_TIME = 10000.0          # Total simulation time
 INITIAL_TIME_INCREMENT = 10.0 # Initial time increment
 
 # File path for inclusion data
@@ -42,11 +42,15 @@ def read_inclusion_data(file_path):
     with open(file_path, 'r') as f:
         reader = csv.reader(f, delimiter=' ')
         next(reader, None)  # Skip header if present
+        count = 0
         for row in reader:
             x, y, z, r = float(row[0]), float(row[1]), float(row[2]), float(row[4]) # csv file contains 5 columns, data on implementation depth is not needed here
             inclusions.append((x, y, z, r))
             if r not in radii:
                 radii.append(r)
+            count += 1
+            if count >= 10:  # Limit to 10 inclusions for faster debugging
+                break
     return inclusions, radii
 
 def create_materials(model, radii):
@@ -68,7 +72,7 @@ def create_materials(model, radii):
         
         # Scale diffusivity and solubility based on radius
         # Adjust these scaling factors based on your specific material behavior
-        diffusivity_factor = 0.1 + (radius / 10.0)  # Example scaling: larger inclusions have higher diffusivity
+        diffusivity_factor = 100 * (radius / 10.0)  # Example scaling: larger inclusions have higher diffusivity
         solubility_factor = 1.5 - (radius / 20.0)   # Example scaling: larger inclusions have lower solubility
         
         incl_mat = model.Material(name=material_name)
@@ -166,7 +170,7 @@ def assign_elements_to_inclusions(part, assembly_instance, inclusions, radii):
 def create_voxelized_diffusion_model():
     """Create the voxelized cuboid model for diffusion analysis with spherical inclusions"""
     # Start a new model
-    Mdb()
+    #Mdb()
     model = mdb.Model(name='VoxelizedDiffusionModel')
     
     # Create the main cuboid part
@@ -234,16 +238,19 @@ def create_voxelized_diffusion_model():
     # Set initial conditions (zero concentration throughout)
     all_nodes = assembly.instances['Cuboid-1'].nodes
     assembly.Set(nodes=all_nodes, name='All_Nodes')
-    model.Concentration(name='Initial_Concentration',
-                       createStepName='Initial',
-                       region=assembly.sets['All_Nodes'],
-                       magnitude=0.0,
-                       distributionType=UNIFORM)
     
-    # Define output requests
+    # Create initial concentration field
+    model.Temperature(name='Initial_Concentration',
+                     createStepName='Initial', 
+                     region=assembly.sets['All_Nodes'],
+                     distributionType=UNIFORM, 
+                     crossSectionDistribution=CONSTANT_THROUGH_THICKNESS,
+                     magnitudes=(0.0,))
+    
+    # Define output requests with correct variables for mass diffusion analysis
     model.FieldOutputRequest(name='F-Output-1',
                             createStepName='DiffusionStep',
-                            variables=('CONC', 'CFLUX', 'COORD'),
+                            variables=('CONC', 'NT'),
                             frequency=10)
     
     # Save the model
