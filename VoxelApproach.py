@@ -2,7 +2,6 @@
 Abaqus Python script to create a voxelized cuboid model for diffusion analysis with
 spherical inclusions from CSV coordinate data.
 """
-import traceback
 from abaqus import *
 from abaqusConstants import *
 import regionToolset
@@ -205,7 +204,8 @@ def create_voxelized_diffusion_model():
                            maxNumInc=1000,
                            initialInc=INITIAL_TIME_INCREMENT,
                            minInc=1e-5,
-                           maxInc=INITIAL_TIME_INCREMENT*10)
+                           maxInc=INITIAL_TIME_INCREMENT*10,
+                           dcmax=0.1)  # Add maximum concentration change per increment
     
     # Define concentration boundary conditions
     # Bottom face with concentration = 0
