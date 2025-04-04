@@ -2,6 +2,7 @@
 Abaqus Python script to create a voxelized cuboid model for diffusion analysis with
 spherical inclusions from CSV coordinate data.
 """
+import traceback
 from abaqus import *
 from abaqusConstants import *
 import regionToolset
