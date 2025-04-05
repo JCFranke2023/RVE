@@ -22,7 +22,7 @@ MODEL_HEIGHT = 5  # Z dimension
 VOXEL_SIZE = 0.2      # Size of each voxel element
 
 # Material properties
-MATRIX_DIFFUSIVITY = 1.0e-7  # Diffusion coefficient for matrix
+MATRIX_DIFFUSIVITY = 1.0e-4  # Diffusion coefficient for matrix
 MATRIX_SOLUBILITY = 0.5      # Solubility coefficient for matrix
 
 # Boundary conditions - concentrations
@@ -374,7 +374,7 @@ def create_voxelized_diffusion_model():
                            initialInc=INITIAL_TIME_INCREMENT,
                            minInc=1e-5,
                            maxInc=INITIAL_TIME_INCREMENT*10,
-                           dcmax=0.1)  # Add maximum concentration change per increment
+                           dcmax=0.8)  # Add maximum concentration change per increment
     
     # Apply periodic boundary conditions to side faces
     apply_periodic_boundary_conditions(model, assembly, instance_name)
