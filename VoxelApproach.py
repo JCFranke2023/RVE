@@ -9,38 +9,57 @@ import regionToolset
 import mesh
 import csv
 import numpy as np
-
 import os
 
-# ====== PARAMETERS (MODIFY AS NEEDED) ======
-# Model dimensions
-MODEL_LENGTH = 5  # X dimension
-MODEL_WIDTH = 5   # Y dimension
-MODEL_HEIGHT = 5  # Z dimension
+# ==================== SIMULATION PARAMETERS ====================
+# --- Model Dimensions ---
+MODEL_LENGTH = 5       # X dimension of the model (mm)
+MODEL_WIDTH = 5        # Y dimension of the model (mm)
+MODEL_HEIGHT = 5       # Z dimension of the model (mm)
 
-# Voxelization parameters
-VOXEL_SIZE = 0.2      # Size of each voxel element
+# --- Meshing Parameters ---
+VOXEL_SIZE = 0.2       # Size of each voxel element (mm) - controls mesh refinement
 
-# Material properties
-MATRIX_DIFFUSIVITY = 1.0e-4  # Diffusion coefficient for matrix
+# --- Material Properties ---
+MATRIX_DIFFUSIVITY = 1.0e-4  # Diffusion coefficient for matrix (mm^2/s)
 MATRIX_SOLUBILITY = 0.5      # Solubility coefficient for matrix
 
-# Boundary conditions - concentrations
-TOP_CONCENTRATION = 100.0      # Normalized concentration at top surface
-BOTTOM_CONCENTRATION = 0.0   # Normalized concentration at bottom surface
+# --- Inclusion Scaling Factors ---
+# These factors scale diffusivity and solubility based on inclusion radius
+DIFF_SCALING_FACTOR = 100.0  # Multiplier for diffusivity scaling
+DIFF_SCALING_RADIUS = 10.0   # Reference radius for diffusivity scaling
+SOL_SCALING_OFFSET = 1.5     # Base value for solubility scaling
+SOL_SCALING_RADIUS = 20.0    # Reference radius for solubility scaling
 
-# Analysis parameters
-TOTAL_TIME = 100000.0          # Total simulation time
-INITIAL_TIME_INCREMENT = 10.0 # Initial time increment
+# --- Boundary Conditions ---
+TOP_CONCENTRATION = 100.0    # Concentration at top surface (z_max)
+BOTTOM_CONCENTRATION = 0.0   # Concentration at bottom surface (z_min)
+PERIODIC_X_Y = False          # Enable periodicity in x and y directions (thin film model)
 
-# Tolerance for node matching in periodic boundary conditions
-NODE_MATCH_TOLERANCE = 1e-6
+# --- Analysis Parameters ---
+TOTAL_TIME = 100000.0        # Total simulation time (s)
+INITIAL_TIME_INCREMENT = 10.0 # Initial time increment (s)
+MIN_TIME_INCREMENT = 1e-5    # Minimum allowed time increment (s)
+MAX_TIME_INCREMENT = 100.0   # Maximum allowed time increment (s) = INITIAL_TIME_INCREMENT * 10
+DCMAX = 0.8                  # Maximum allowed concentration change per increment
 
-# File path for inclusion data
+# --- Output Parameters ---
+OUTPUT_FREQUENCY = 10        # Frequency of field output requests
+
+# --- Numerical Parameters ---
+NODE_MATCH_TOLERANCE = 1e-6  # Tolerance for node matching in periodic boundary conditions
+
+# --- File Paths ---
 CSV_FILE_PATH = 'C:/Users/franke/Desktop/Neuer Ordner/inclusions.csv'  # Format: x,y,z,radius
+OUTPUT_CAE_PATH = 'voxelized_diffusion_model_with_PBC.cae'  # Output CAE file name
+
+# --- Debugging Options ---
+INCLUSION_LIMIT = 10         # Limit number of inclusions to process (for faster debugging)
+WORKING_DIRECTORY = 'C:/Users/franke/Desktop/Neuer Ordner/'  # Working directory path
+# ============================================================
 
 # Change to the directory where the script is located
-os.chdir('C:/Users/franke/Desktop/Neuer Ordner/')
+os.chdir(WORKING_DIRECTORY)
 
 # ====== HELPER FUNCTIONS ======
 def read_inclusion_data(file_path):
@@ -57,7 +76,7 @@ def read_inclusion_data(file_path):
             if r not in radii:
                 radii.append(r)
             count += 1
-            if count >= 10:  # Limit to 10 inclusions for faster debugging
+            if count >= INCLUSION_LIMIT:  # Limit for faster debugging
                 break
     return inclusions, radii
 
@@ -78,10 +97,9 @@ def create_materials(model, radii):
         radius_str = str(radius).replace(".", "_")
         material_name = f'Inclusion_Material_{radius_str}'
         
-        # Scale diffusivity and solubility based on radius
-        # Adjust these scaling factors based on your specific material behavior
-        diffusivity_factor = 100 * (radius / 10.0)  # Example scaling: larger inclusions have higher diffusivity
-        solubility_factor = 1.5 - (radius / 20.0)   # Example scaling: larger inclusions have lower solubility
+        # Scale diffusivity and solubility based on radius using the specified scaling factors
+        diffusivity_factor = DIFF_SCALING_FACTOR * (radius / DIFF_SCALING_RADIUS)
+        solubility_factor = SOL_SCALING_OFFSET - (radius / SOL_SCALING_RADIUS)
         
         incl_mat = model.Material(name=material_name)
         incl_mat.Diffusivity(table=((MATRIX_DIFFUSIVITY * diffusivity_factor, ), ))
@@ -173,7 +191,7 @@ def assign_elements_to_inclusions(part, assembly_instance, inclusions, radii):
     print(f"Total assigned elements: {len(assigned_elements)} of {len(all_elements)}")
     return
 
-def create_face_node_sets(part, assembly, instance_name):
+def create_face_node_sets(model_name, assembly, instance_name):
     """Create node sets for each face of the cuboid for periodic boundary conditions"""
     try:
         instance = assembly.instances[instance_name]
@@ -268,13 +286,10 @@ def apply_periodic_boundary_conditions(model, assembly, instance_name):
     assembly.Set(faces=back_faces, name='Back_Face_Set')
     print(f"Created back face set with {len(back_faces)} faces")
     
-    # Create mass diffusion flux conditions (zero flux) for side faces
     # In Abaqus, zero flux is the default for all boundaries, so we don't need 
-    # to explicitly set flux boundary conditions. By not specifying any boundary
-    # conditions on the side faces, they will automatically have zero flux.
+    # to explicitly set flux boundary conditions.
     
-    print(f"Applied zero-flux boundary conditions to the side faces of {instance_name}")
-    print("Note: In Abaqus, faces without explicit boundary conditions have zero flux by default.")
+    print(f"Created face sets for {instance_name}")
     return
 
 def create_periodic_constraints(model, assembly, source_set_name, target_set_name, coordinate_index):
@@ -286,7 +301,7 @@ def create_periodic_constraints(model, assembly, source_set_name, target_set_nam
     except KeyError:
         print(f"Error: Node sets '{source_set_name}' or '{target_set_name}' do not exist in the assembly")
         print(f"Available sets: {assembly.sets.keys()}")
-        return
+        return 0
     
     # Get the instance name from the first node
     instance_name = source_nodes[0].instanceName
@@ -320,14 +335,241 @@ def create_periodic_constraints(model, assembly, source_set_name, target_set_nam
             source_node = source_dict[key]
             
             # Create an equation constraint for the concentration degree of freedom
-            # For mass diffusion, the DOF is 1 (concentration DOF in Abaqus)
+            # For mass diffusion, the DOF is 11 (concentration DOF in Abaqus)
             model.Equation(name=f'Periodic_Constraint_{constraint_count}', 
-                          terms=((1.0, target_node.instanceName, target_node.label, 1), 
-                                (-1.0, source_node.instanceName, source_node.label, 1)))
+                          terms=((1.0, target_node.instanceName, target_node.label, 11), 
+                                (-1.0, source_node.instanceName, source_node.label, 11)))
             constraint_count += 1
     
     print(f"Created {constraint_count} periodic constraints between {source_set_name} and {target_set_name}")
-    return
+    return constraint_count
+
+def create_film_periodic_constraints(model, assembly, instance_name):
+    """Create comprehensive periodic constraints for thin film (x and y periodic only)"""
+    if not PERIODIC_X_Y:
+        print("Periodic boundary conditions in x and y directions are disabled.")
+        return 0
+        
+    # Identify and group all nodes on the boundary
+    x_min, x_max = 0.0, MODEL_LENGTH
+    y_min, y_max = 0.0, MODEL_WIDTH
+    tol = NODE_MATCH_TOLERANCE
+    
+    instance = assembly.instances[instance_name]
+    
+    # Function to check if a node is on a specific boundary
+    def is_on_boundary(node, boundary):
+        x, y, z = node.coordinates
+        if boundary == 'x_min': return abs(x - x_min) < tol
+        if boundary == 'x_max': return abs(x - x_max) < tol
+        if boundary == 'y_min': return abs(y - y_min) < tol
+        if boundary == 'y_max': return abs(y - y_max) < tol
+        return False
+    
+    # Identify corners, edges, and faces
+    corners = {}
+    x_edges = {}  # Dictionary: (y_type, z) -> [nodes] (edges along x direction)
+    y_edges = {}  # Dictionary: (x_type, z) -> [nodes] (edges along y direction)
+    
+    print("Categorizing boundary nodes...")
+    
+    # Categorize all nodes on the boundaries
+    for node in instance.nodes:
+        x, y, z = node.coordinates
+        # Round z to handle floating point comparison
+        z_rounded = round(z, 6)
+        
+        # Check if node is on any boundary
+        on_x_min = is_on_boundary(node, 'x_min')
+        on_x_max = is_on_boundary(node, 'x_max')
+        on_y_min = is_on_boundary(node, 'y_min')
+        on_y_max = is_on_boundary(node, 'y_max')
+        
+        # If node is not on any boundary, skip it
+        if not (on_x_min or on_x_max or on_y_min or on_y_max):
+            continue
+            
+        # Check if node is at a corner
+        if (on_x_min or on_x_max) and (on_y_min or on_y_max):
+            x_type = 'x_max' if on_x_max else 'x_min'
+            y_type = 'y_max' if on_y_max else 'y_min'
+            corner_key = (x_type, y_type, z_rounded)
+            corners[corner_key] = node
+        # Check if node is on an x-direction edge (constant y)
+        elif not (on_x_min or on_x_max) and (on_y_min or on_y_max):
+            y_type = 'y_max' if on_y_max else 'y_min'
+            edge_key = (y_type, z_rounded)
+            if edge_key not in x_edges:
+                x_edges[edge_key] = []
+            x_edges[edge_key].append(node)
+        # Check if node is on a y-direction edge (constant x)
+        elif (on_x_min or on_x_max) and not (on_y_min or on_y_max):
+            x_type = 'x_max' if on_x_max else 'x_min'
+            edge_key = (x_type, z_rounded)
+            if edge_key not in y_edges:
+                y_edges[edge_key] = []
+            y_edges[edge_key].append(node)
+    
+    # Debug info
+    print(f"Found {len(corners)} corner nodes")
+    print(f"Found {len(x_edges)} x-direction edges")
+    print(f"Found {len(y_edges)} y-direction edges")
+    
+    # Create constraint counter
+    constraint_count = 0
+    
+    # 1. Handle corners - map to their partners
+    print("Creating corner constraints...")
+    for corner_key, corner_node in corners.items():
+        x_type, y_type, z = corner_key
+        
+        # Skip (x_min, y_min, z) corners (our reference corners)
+        if x_type == 'x_min' and y_type == 'y_min':
+            continue
+        
+        # Find the corresponding reference corner
+        ref_key = ('x_min', 'y_min', z)
+        if ref_key in corners:
+            ref_node = corners[ref_key]
+            
+            # Create constraint
+            model.Equation(name=f'Corner_Constraint_{constraint_count}', 
+                          terms=((1.0, corner_node.instanceName, corner_node.label, 11), 
+                                (-1.0, ref_node.instanceName, ref_node.label, 11)))
+            constraint_count += 1
+    
+    print(f"Created {constraint_count} corner constraints")
+    
+    # 2. Handle x-direction edges (along constant y)
+    print("Creating x-edge constraints...")
+    edge_constraints = 0
+    for (y_type, z), edge_nodes in x_edges.items():
+        # Skip y_min edges (our reference edges)
+        if y_type == 'y_min':
+            continue
+            
+        # Find corresponding nodes on y_min edge
+        ref_key = ('y_min', z)
+        if ref_key in x_edges:
+            ref_nodes = x_edges[ref_key]
+            
+            # Sort nodes by x-coordinate
+            edge_nodes.sort(key=lambda n: n.coordinates[0])
+            ref_nodes.sort(key=lambda n: n.coordinates[0])
+            
+            # Create constraints for matching nodes
+            for i in range(min(len(edge_nodes), len(ref_nodes))):
+                model.Equation(name=f'X_Edge_Constraint_{constraint_count}', 
+                              terms=((1.0, edge_nodes[i].instanceName, edge_nodes[i].label, 11), 
+                                    (-1.0, ref_nodes[i].instanceName, ref_nodes[i].label, 11)))
+                constraint_count += 1
+                edge_constraints += 1
+    
+    print(f"Created {edge_constraints} x-edge constraints")
+    
+    # 3. Handle y-direction edges (along constant x)
+    print("Creating y-edge constraints...")
+    edge_constraints = 0
+    for (x_type, z), edge_nodes in y_edges.items():
+        # Skip x_min edges (our reference edges)
+        if x_type == 'x_min':
+            continue
+            
+        # Find corresponding nodes on x_min edge
+        ref_key = ('x_min', z)
+        if ref_key in y_edges:
+            ref_nodes = y_edges[ref_key]
+            
+            # Sort nodes by y-coordinate
+            edge_nodes.sort(key=lambda n: n.coordinates[1])
+            ref_nodes.sort(key=lambda n: n.coordinates[1])
+            
+            # Create constraints for matching nodes
+            for i in range(min(len(edge_nodes), len(ref_nodes))):
+                model.Equation(name=f'Y_Edge_Constraint_{constraint_count}', 
+                              terms=((1.0, edge_nodes[i].instanceName, edge_nodes[i].label, 11), 
+                                    (-1.0, ref_nodes[i].instanceName, ref_nodes[i].label, 11)))
+                constraint_count += 1
+                edge_constraints += 1
+    
+    print(f"Created {edge_constraints} y-edge constraints")
+    
+    # 4. Create node sets for the faces (these will exclude edges and corners)
+    print("Creating face node sets...")
+    create_face_node_sets(model.name, assembly, instance_name)
+    
+    # 5. Filter face nodes to exclude edges and corners
+    print("Filtering face nodes and creating face constraints...")
+    
+    # Identify nodes on edges and corners
+    edge_corner_nodes = set()
+    for nodes_list in x_edges.values():
+        for node in nodes_list:
+            edge_corner_nodes.add((node.instanceName, node.label))
+    for nodes_list in y_edges.values():
+        for node in nodes_list:
+            edge_corner_nodes.add((node.instanceName, node.label))
+    for node in corners.values():
+        edge_corner_nodes.add((node.instanceName, node.label))
+    
+    # Function to filter out edge and corner nodes
+    def filter_edge_corner_nodes(node_set):
+        filtered_nodes = []
+        for node in node_set:
+            if (node.instanceName, node.label) not in edge_corner_nodes:
+                filtered_nodes.append(node)
+        return filtered_nodes
+    
+    # Apply x-direction face constraints
+    face_constraints = 0
+    try:
+        x_min_nodes = filter_edge_corner_nodes(assembly.sets['x_min_nodes'].nodes)
+        x_max_nodes = filter_edge_corner_nodes(assembly.sets['x_max_nodes'].nodes)
+        
+        # Create a dictionary of x_min node positions
+        x_min_dict = {}
+        for node in x_min_nodes:
+            key = (round(node.coordinates[1], 6), round(node.coordinates[2], 6))
+            x_min_dict[key] = node
+        
+        # Create constraints between matching face nodes
+        for node in x_max_nodes:
+            key = (round(node.coordinates[1], 6), round(node.coordinates[2], 6))
+            if key in x_min_dict:
+                model.Equation(name=f'X_Face_Constraint_{constraint_count}', 
+                              terms=((1.0, node.instanceName, node.label, 11), 
+                                    (-1.0, x_min_dict[key].instanceName, x_min_dict[key].label, 11)))
+                constraint_count += 1
+                face_constraints += 1
+    except KeyError:
+        print("Warning: Could not find x face node sets")
+    
+    # Apply y-direction face constraints
+    try:
+        y_min_nodes = filter_edge_corner_nodes(assembly.sets['y_min_nodes'].nodes)
+        y_max_nodes = filter_edge_corner_nodes(assembly.sets['y_max_nodes'].nodes)
+        
+        # Create a dictionary of y_min node positions
+        y_min_dict = {}
+        for node in y_min_nodes:
+            key = (round(node.coordinates[0], 6), round(node.coordinates[2], 6))
+            y_min_dict[key] = node
+        
+        # Create constraints between matching face nodes
+        for node in y_max_nodes:
+            key = (round(node.coordinates[0], 6), round(node.coordinates[2], 6))
+            if key in y_min_dict:
+                model.Equation(name=f'Y_Face_Constraint_{constraint_count}', 
+                              terms=((1.0, node.instanceName, node.label, 11), 
+                                    (-1.0, y_min_dict[key].instanceName, y_min_dict[key].label, 11)))
+                constraint_count += 1
+                face_constraints += 1
+    except KeyError:
+        print("Warning: Could not find y face node sets")
+    
+    print(f"Created {face_constraints} face constraints")
+    print(f"Created a total of {constraint_count} periodic constraints for the thin film model")
+    return constraint_count
 
 # ====== MAIN MODEL CREATION ======
 def create_voxelized_diffusion_model():
@@ -372,12 +614,20 @@ def create_voxelized_diffusion_model():
                            timePeriod=TOTAL_TIME, 
                            maxNumInc=100000,
                            initialInc=INITIAL_TIME_INCREMENT,
-                           minInc=1e-5,
-                           maxInc=INITIAL_TIME_INCREMENT*10,
-                           dcmax=0.8)  # Add maximum concentration change per increment
+                           minInc=MIN_TIME_INCREMENT,
+                           maxInc=MAX_TIME_INCREMENT,
+                           dcmax=DCMAX)  # Maximum concentration change per increment
     
-    # Apply periodic boundary conditions to side faces
+    # Apply face sets for boundary conditions
     apply_periodic_boundary_conditions(model, assembly, instance_name)
+    
+    # Create periodic boundary conditions with special treatment for edges and corners
+    if PERIODIC_X_Y:
+        print("\n=== Creating Periodic Boundary Conditions ===")
+        total_constraints = create_film_periodic_constraints(model, assembly, instance_name)
+        print(f"Total periodic constraints created: {total_constraints}")
+    else:
+        print("Skipping periodic boundary conditions as PERIODIC_X_Y is disabled.")
     
     # Define concentration boundary conditions
     # Bottom face with concentration = 0
@@ -391,7 +641,7 @@ def create_voxelized_diffusion_model():
                          magnitude=BOTTOM_CONCENTRATION,
                          distributionType=UNIFORM)
     
-    # Top face with concentration = 1
+    # Top face with concentration = TOP_CONCENTRATION
     top_face = assembly.instances[instance_name].faces.getByBoundingBox(
         xMin=-0.1, yMin=-0.1, zMin=MODEL_HEIGHT-0.1,
         xMax=MODEL_LENGTH+0.1, yMax=MODEL_WIDTH+0.1, zMax=MODEL_HEIGHT+0.1)
@@ -418,10 +668,10 @@ def create_voxelized_diffusion_model():
     model.FieldOutputRequest(name='F-Output-1',
                             createStepName='DiffusionStep',
                             variables=('CONC', 'NT'),
-                            frequency=10)
+                            frequency=OUTPUT_FREQUENCY)
     
     # Save the model
-    mdb.saveAs('voxelized_diffusion_model_with_PBC.cae')
+    mdb.saveAs(OUTPUT_CAE_PATH)
     print("Diffusion model with periodic boundary conditions created successfully!")
 
 # Execute the main function when script is run
