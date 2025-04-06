@@ -4,7 +4,6 @@ spherical inclusions from CSV coordinate data and periodic boundary conditions.
 """
 import traceback
 from abaqus import *
-from abaqusConstants import *
 import regionToolset
 import mesh
 import csv
@@ -13,6 +12,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from odbAccess import *
+#from abaqusConstants import SS findet er nicht????
 from abaqusConstants import *
 
 # ==================== SIMULATION PARAMETERS ====================
@@ -680,30 +680,33 @@ def create_flux_plot(time_points, flux_values, output_path):
     return plt.gcf()  # Return the figure for potential display
 
 # ====== ADDITIONAL CODE TO CREATE NODE SETS ======
-def create_additional_node_sets(model, assembly, instance_name):
-    """Create additional node sets needed for flux extraction"""
-    instance = assembly.instances[instance_name]
-    
-    # Create top face node set specifically for output
-    top_nodes = instance.nodes.getByBoundingBox(
-        xMin=float(-NODE_MATCH_TOLERANCE), xMax=float(MODEL_LENGTH+NODE_MATCH_TOLERANCE),
-        yMin=float(-NODE_MATCH_TOLERANCE), yMax=float(MODEL_WIDTH+NODE_MATCH_TOLERANCE),
-        zMin=float(MODEL_HEIGHT-NODE_MATCH_TOLERANCE), zMax=float(MODEL_HEIGHT+NODE_MATCH_TOLERANCE))
-    
-    # Create the node set
-    assembly.Set(nodes=top_nodes, name='TOP_FACE_NODES')
-    print(f"Created TOP_FACE_NODES set with {len(top_nodes)} nodes for flux measurement")
-
 # ===== ADD HISTORY OUTPUT REQUEST =====
 def add_flux_history_output(model):
     """Add a history output request for flux data"""
     model.HistoryOutputRequest(name='H-Output-Flux',
                               createStepName='DiffusionStep',
-                              variables=('NJFLUX',),
-                              region=model.rootAssembly.sets['TOP_FACE_NODES'],
+                              #variables=('MFLUX',),  # Use MFLUX for mass flux
+                              region=model.rootAssembly.surfaces['TOP_FACE_SURFACE'],
                               sectionPoints=DEFAULT,
                               rebar=EXCLUDE)
 
+def create_additional_node_sets(model, assembly, instance_name):
+    instance = assembly.instances[instance_name]
+    
+    # Keep the node set for any node-based outputs
+    top_nodes = instance.nodes.getByBoundingBox(
+        xMin=float(-NODE_MATCH_TOLERANCE), xMax=float(MODEL_LENGTH+NODE_MATCH_TOLERANCE),
+        yMin=float(-NODE_MATCH_TOLERANCE), yMax=float(MODEL_WIDTH+NODE_MATCH_TOLERANCE),
+        zMin=float(MODEL_HEIGHT-NODE_MATCH_TOLERANCE), zMax=float(MODEL_HEIGHT+NODE_MATCH_TOLERANCE))
+    assembly.Set(nodes=top_nodes, name='TOP_FACE_NODES')
+    
+    # Add a surface for flux measurements
+    top_faces = instance.faces.getByBoundingBox(
+        xMin=float(-NODE_MATCH_TOLERANCE), xMax=float(MODEL_LENGTH+NODE_MATCH_TOLERANCE),
+        yMin=float(-NODE_MATCH_TOLERANCE), yMax=float(MODEL_WIDTH+NODE_MATCH_TOLERANCE),
+        zMin=float(MODEL_HEIGHT-NODE_MATCH_TOLERANCE), zMax=float(MODEL_HEIGHT+NODE_MATCH_TOLERANCE))
+    assembly.Surface(side1Faces=top_faces, name='TOP_FACE_SURFACE')
+    print(f"Created TOP_FACE_SURFACE with {len(top_faces)} faces for flux measurement")
 
 # ====== MAIN MODEL CREATION ======
 def create_voxelized_diffusion_model():
@@ -743,14 +746,15 @@ def create_voxelized_diffusion_model():
     assign_elements_to_inclusions(cuboid_part, cuboid_instance, inclusions, radii)
     
     # Create a mass diffusion step
-    model.MassDiffusionStep(name='DiffusionStep', 
-                           previous='Initial',
-                           timePeriod=float(TOTAL_TIME), 
-                           maxNumInc=100000,
-                           initialInc=float(INITIAL_TIME_INCREMENT),
-                           minInc=float(MIN_TIME_INCREMENT),
-                           maxInc=float(MAX_TIME_INCREMENT),
-                           dcmax=float(DCMAX))  # Maximum concentration change per increment
+    model.MassDiffusionStep(name='DiffusionStep',
+                            previous='Initial',
+                            initialInc=float(INITIAL_TIME_INCREMENT),
+                            timePeriod=float(TOTAL_TIME),
+                            dcmax=float(DCMAX))  # Maximum concentration change per increment
+                            #end=SS)
+                           #maxNumInc=100000,
+                           #minInc=float(MIN_TIME_INCREMENT),
+                           #maxInc=float(MAX_TIME_INCREMENT))#,
     
     # Apply face sets for boundary conditions
     apply_periodic_boundary_conditions(model, assembly, instance_name)
