@@ -1,0 +1,14 @@
+Analysis initiated from SIMULIA established products
+Abaqus JOB VoxelizedDiffusionModel_Job
+Abaqus 2024
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server license2.rz.rwth-aachen.de.
+<1124 out of 1600 licenses remain available>.
+Begin Analysis Input File Processor
+09.04.2025 11:35:56
+Run pre.exe
+09.04.2025 11:36:02
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+09.04.2025 11:36:02
+Run standard.exe

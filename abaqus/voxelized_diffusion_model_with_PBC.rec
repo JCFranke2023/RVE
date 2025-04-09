@@ -1,0 +1,99 @@
+# -*- coding: mbcs -*-
+from part import *
+from material import *
+from section import *
+from assembly import *
+from step import *
+from interaction import *
+from load import *
+from mesh import *
+from optimization import *
+from job import *
+from sketch import *
+from visualization import *
+from connectorBehavior import *
+mdb.Job(description='Diffusion analysis with flux extraction', model=
+    'VoxelizedDiffusionModel', name='VoxelizedDiffusionModel_Job')
+mdb.models['VoxelizedDiffusionModel'].rootAssembly.regenerate()
+mdb.jobs['VoxelizedDiffusionModel_Job'].submit(consistencyChecking=OFF)
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STARTED, {
+    'phase': BATCHPRE_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job', 
+    'clientHost': 'PlasmaPower', 'handle': 0})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(HEADING, {
+    'heading': 'Diffusion analysis with flux extraction', 
+    'phase': BATCHPRE_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(WARNING, {
+    'message': 'OUTPUT REQUEST MFLT IS NOT AVAILABLE FOR THIS TYPE OF ANALYSIS', 
+    'phase': BATCHPRE_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(ODB_FILE, {
+    'file': 'C:\\Users\\franke\\source\\repos\\JCFranke2023\\RVE\\abaqus\\VoxelizedDiffusionModel_Job.odb', 
+    'phase': BATCHPRE_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(COMPLETED, {
+    'message': 'Analysis phase complete', 'phase': BATCHPRE_PHASE, 
+    'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STARTED, {
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job', 
+    'clientHost': 'PlasmaPower', 'handle': 28720})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STEP, {'stepId': 1, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(ODB_FRAME, {'step': 0, 
+    'frame': 0, 'phase': STANDARD_PHASE, 
+    'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(MEMORY_ESTIMATE, {
+    'memory': 174.0, 'phase': STANDARD_PHASE, 
+    'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(PHYSICAL_MEMORY, {
+    'physical_memory': 196285.0, 'phase': STANDARD_PHASE, 
+    'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(MINIMUM_MEMORY, {
+    'minimum_memory': 43.0, 'phase': STANDARD_PHASE, 
+    'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 1, 'attempts': ' 1U', 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 0.0, 'stepTime': 0.0, 'timeIncrement': 10.0, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 1, 'attempts': 2, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 2.85437797287615, 
+    'stepTime': 2.85437797287615, 'timeIncrement': 2.85437797287615, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 2, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 5.7087559457523, 'stepTime': 5.7087559457523, 
+    'timeIncrement': 2.85437797287615, 'phase': STANDARD_PHASE, 
+    'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 3, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 8.56313391862844, 
+    'stepTime': 8.56313391862844, 'timeIncrement': 2.85437797287615, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 4, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 11.4175118915046, 
+    'stepTime': 11.4175118915046, 'timeIncrement': 2.85437797287615, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 5, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 14.2718898643807, 
+    'stepTime': 14.2718898643807, 'timeIncrement': 2.85437797287615, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 6, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 17.1262678372569, 
+    'stepTime': 17.1262678372569, 'timeIncrement': 2.85437797287615, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 7, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 19.980645810133, 'stepTime': 19.980645810133, 
+    'timeIncrement': 2.85437797287615, 'phase': STANDARD_PHASE, 
+    'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 8, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 22.8350237830092, 
+    'stepTime': 22.8350237830092, 'timeIncrement': 2.85437797287615, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})
+mdb.jobs['VoxelizedDiffusionModel_Job']._Message(STATUS, {'step': 1, 
+    'increment': 9, 'attempts': 1, 'severe': 0, 'equilibrium': 1, 
+    'iterations': 1, 'totalTime': 25.6894017558853, 
+    'stepTime': 25.6894017558853, 'timeIncrement': 2.85437797287615, 
+    'phase': STANDARD_PHASE, 'jobName': 'VoxelizedDiffusionModel_Job'})

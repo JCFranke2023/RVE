@@ -1,27 +1,24 @@
-"""
-Modified Abaqus Python script to create a voxelized cuboid model for diffusion analysis with
-spherical inclusions from CSV coordinate data and periodic boundary conditions.
-"""
 import traceback
 from abaqus import *
-from abaqusConstants import *
 import regionToolset
 import mesh
 import csv
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+import numpy as np
+from odbAccess import *
+from abaqusConstants import *
 
 # ==================== SIMULATION PARAMETERS ====================
 # --- Model Dimensions ---
-MODEL_LENGTH = 5       # X dimension of the model (mm)
-MODEL_WIDTH = 5        # Y dimension of the model (mm)
-MODEL_HEIGHT = 5       # Z dimension of the model (mm)
+CUBE_SIZE = 5       # dimension of the model (nm)
 
 # --- Meshing Parameters ---
-VOXEL_SIZE = 0.2       # Size of each voxel element (mm) - controls mesh refinement
+VOXEL_SIZE = 0.2       # Size of each voxel element (nm) - controls mesh refinement
 
 # --- Material Properties ---
-MATRIX_DIFFUSIVITY = 1.0e-4  # Diffusion coefficient for matrix (mm^2/s)
+MATRIX_DIFFUSIVITY = 1.0e-4  # Diffusion coefficient for matrix (nm^2/s)
 MATRIX_SOLUBILITY = 0.5      # Solubility coefficient for matrix
 
 # --- Inclusion Scaling Factors ---
@@ -34,7 +31,7 @@ SOL_SCALING_RADIUS = 20.0    # Reference radius for solubility scaling
 # --- Boundary Conditions ---
 TOP_CONCENTRATION = 100.0    # Concentration at top surface (z_max)
 BOTTOM_CONCENTRATION = 0.0   # Concentration at bottom surface (z_min)
-PERIODIC_X_Y = False          # Enable periodicity in x and y directions (thin film model)
+PERIODIC_X_Y = True          # Enable periodicity in x and y directions (thin film model)
 
 # --- Analysis Parameters ---
 TOTAL_TIME = 100000.0        # Total simulation time (s)
@@ -42,6 +39,7 @@ INITIAL_TIME_INCREMENT = 10.0 # Initial time increment (s)
 MIN_TIME_INCREMENT = 1e-5    # Minimum allowed time increment (s)
 MAX_TIME_INCREMENT = 100.0   # Maximum allowed time increment (s) = INITIAL_TIME_INCREMENT * 10
 DCMAX = 0.8                  # Maximum allowed concentration change per increment
+STEADY_STATE_THRESHOLD = 0.001 # Threshold for steady-state detection (fraction of initial concentration)
 
 # --- Output Parameters ---
 OUTPUT_FREQUENCY = 10        # Frequency of field output requests
@@ -50,12 +48,12 @@ OUTPUT_FREQUENCY = 10        # Frequency of field output requests
 NODE_MATCH_TOLERANCE = 1e-6  # Tolerance for node matching in periodic boundary conditions
 
 # --- File Paths ---
-CSV_FILE_PATH = 'C:/Users/franke/Desktop/Neuer Ordner/inclusions.csv'  # Format: x,y,z,radius
+CSV_FILE_PATH = 'C:/Users/franke/source/repos/JCFranke2023/RVE/inclusions.csv'  # Format: x,y,z,radius
 OUTPUT_CAE_PATH = 'voxelized_diffusion_model_with_PBC.cae'  # Output CAE file name
 
 # --- Debugging Options ---
 INCLUSION_LIMIT = 10         # Limit number of inclusions to process (for faster debugging)
-WORKING_DIRECTORY = 'C:/Users/franke/Desktop/Neuer Ordner/'  # Working directory path
+WORKING_DIRECTORY = 'C:/Users/franke/source/repos/JCFranke2023/RVE/abaqus'  # Working directory path
 # ============================================================
 
 # Change to the directory where the script is located
@@ -191,65 +189,8 @@ def assign_elements_to_inclusions(part, assembly_instance, inclusions, radii):
     print(f"Total assigned elements: {len(assigned_elements)} of {len(all_elements)}")
     return
 
-def create_face_node_sets(model_name, assembly, instance_name):
-    """Create node sets for each face of the cuboid for periodic boundary conditions"""
-    try:
-        instance = assembly.instances[instance_name]
-        print(f"Successfully found instance: {instance_name}")
-        
-        # Get node count for debugging
-        all_nodes = instance.nodes
-        print(f"Total nodes in instance: {len(all_nodes)}")
-        
-        # Define the six faces of the cuboid
-        faces = {
-            'x_min': instance.nodes.getByBoundingBox(
-                xMin=-NODE_MATCH_TOLERANCE, xMax=NODE_MATCH_TOLERANCE,
-                yMin=-NODE_MATCH_TOLERANCE, yMax=MODEL_WIDTH+NODE_MATCH_TOLERANCE,
-                zMin=-NODE_MATCH_TOLERANCE, zMax=MODEL_HEIGHT+NODE_MATCH_TOLERANCE),
-            'x_max': instance.nodes.getByBoundingBox(
-                xMin=MODEL_LENGTH-NODE_MATCH_TOLERANCE, xMax=MODEL_LENGTH+NODE_MATCH_TOLERANCE,
-                yMin=-NODE_MATCH_TOLERANCE, yMax=MODEL_WIDTH+NODE_MATCH_TOLERANCE, 
-                zMin=-NODE_MATCH_TOLERANCE, zMax=MODEL_HEIGHT+NODE_MATCH_TOLERANCE),
-            'y_min': instance.nodes.getByBoundingBox(
-                xMin=-NODE_MATCH_TOLERANCE, xMax=MODEL_LENGTH+NODE_MATCH_TOLERANCE,
-                yMin=-NODE_MATCH_TOLERANCE, yMax=NODE_MATCH_TOLERANCE,
-                zMin=-NODE_MATCH_TOLERANCE, zMax=MODEL_HEIGHT+NODE_MATCH_TOLERANCE),
-            'y_max': instance.nodes.getByBoundingBox(
-                xMin=-NODE_MATCH_TOLERANCE, xMax=MODEL_LENGTH+NODE_MATCH_TOLERANCE,
-                yMin=MODEL_WIDTH-NODE_MATCH_TOLERANCE, yMax=MODEL_WIDTH+NODE_MATCH_TOLERANCE,
-                zMin=-NODE_MATCH_TOLERANCE, zMax=MODEL_HEIGHT+NODE_MATCH_TOLERANCE),
-            'z_min': instance.nodes.getByBoundingBox(
-                xMin=-NODE_MATCH_TOLERANCE, xMax=MODEL_LENGTH+NODE_MATCH_TOLERANCE,
-                yMin=-NODE_MATCH_TOLERANCE, yMax=MODEL_WIDTH+NODE_MATCH_TOLERANCE,
-                zMin=-NODE_MATCH_TOLERANCE, zMax=NODE_MATCH_TOLERANCE),
-            'z_max': instance.nodes.getByBoundingBox(
-                xMin=-NODE_MATCH_TOLERANCE, xMax=MODEL_LENGTH+NODE_MATCH_TOLERANCE,
-                yMin=-NODE_MATCH_TOLERANCE, yMax=MODEL_WIDTH+NODE_MATCH_TOLERANCE,
-                zMin=MODEL_HEIGHT-NODE_MATCH_TOLERANCE, zMax=MODEL_HEIGHT+NODE_MATCH_TOLERANCE)
-        }
-        
-        # Create node sets for each face
-        for face_name, face_nodes in faces.items():
-            # Check if we found any nodes
-            if len(face_nodes) == 0:
-                print(f"WARNING: No nodes found for face '{face_name}'")
-                continue
-            
-            # Create the set
-            try:
-                assembly.Set(nodes=face_nodes, name=f'{face_name}_nodes')
-                print(f"Created node set '{face_name}_nodes' with {len(face_nodes)} nodes")
-            except Exception as e:
-                print(f"Error creating set for '{face_name}': {str(e)}")
-        
-        return faces
-    except Exception as e:
-        print(f"Error in create_face_node_sets: {str(e)}")
-        traceback.print_exc()
-        return {}
-
-def apply_periodic_boundary_conditions(model, assembly, instance_name):
+#unused
+def create_face_sets(assembly, instance_name):
     """Apply periodic boundary conditions to the side faces using a simpler approach"""
     instance = assembly.instances[instance_name]
     
@@ -257,41 +198,38 @@ def apply_periodic_boundary_conditions(model, assembly, instance_name):
     # Left face (x=0)
     left_faces = instance.faces.getByBoundingBox(
         xMin=-0.1, xMax=0.1,
-        yMin=-0.1, yMax=MODEL_WIDTH+0.1,
-        zMin=-0.1, zMax=MODEL_HEIGHT+0.1)
+        yMin=-0.1, yMax=CUBE_SIZE+0.1,
+        zMin=-0.1, zMax=CUBE_SIZE+0.1)
     assembly.Set(faces=left_faces, name='Left_Face_Set')
     print(f"Created left face set with {len(left_faces)} faces")
     
     # Right face (x=MODEL_LENGTH)
     right_faces = instance.faces.getByBoundingBox(
-        xMin=MODEL_LENGTH-0.1, xMax=MODEL_LENGTH+0.1,
-        yMin=-0.1, yMax=MODEL_WIDTH+0.1,
-        zMin=-0.1, zMax=MODEL_HEIGHT+0.1)
+        xMin=CUBE_SIZE-0.1, xMax=CUBE_SIZE+0.1,
+        yMin=-0.1, yMax=CUBE_SIZE+0.1,
+        zMin=-0.1, zMax=CUBE_SIZE+0.1)
     assembly.Set(faces=right_faces, name='Right_Face_Set')
     print(f"Created right face set with {len(right_faces)} faces")
     
     # Front face (y=0)
     front_faces = instance.faces.getByBoundingBox(
-        xMin=-0.1, xMax=MODEL_LENGTH+0.1,
+        xMin=-0.1, xMax=CUBE_SIZE+0.1,
         yMin=-0.1, yMax=0.1,
-        zMin=-0.1, zMax=MODEL_HEIGHT+0.1)
+        zMin=-0.1, zMax=CUBE_SIZE+0.1)
     assembly.Set(faces=front_faces, name='Front_Face_Set')
     print(f"Created front face set with {len(front_faces)} faces")
     
     # Back face (y=MODEL_WIDTH)
     back_faces = instance.faces.getByBoundingBox(
-        xMin=-0.1, xMax=MODEL_LENGTH+0.1,
-        yMin=MODEL_WIDTH-0.1, yMax=MODEL_WIDTH+0.1,
-        zMin=-0.1, zMax=MODEL_HEIGHT+0.1)
+        xMin=-0.1, xMax=CUBE_SIZE+0.1,
+        yMin=CUBE_SIZE-0.1, yMax=CUBE_SIZE+0.1,
+        zMin=-0.1, zMax=CUBE_SIZE+0.1)
     assembly.Set(faces=back_faces, name='Back_Face_Set')
     print(f"Created back face set with {len(back_faces)} faces")
     
-    # In Abaqus, zero flux is the default for all boundaries, so we don't need 
-    # to explicitly set flux boundary conditions.
-    
     print(f"Created face sets for {instance_name}")
     return
-
+'''
 def create_periodic_constraints(model, assembly, source_set_name, target_set_name, coordinate_index):
     """Create equation constraints between corresponding nodes on opposite faces"""
     # Check if sets exist and get nodes
@@ -343,7 +281,9 @@ def create_periodic_constraints(model, assembly, source_set_name, target_set_nam
     
     print(f"Created {constraint_count} periodic constraints between {source_set_name} and {target_set_name}")
     return constraint_count
-
+'''
+'''
+# Claude version
 def create_film_periodic_constraints(model, assembly, instance_name):
     """Create comprehensive periodic constraints for thin film (x and y periodic only)"""
     if not PERIODIC_X_Y:
@@ -433,9 +373,11 @@ def create_film_periodic_constraints(model, assembly, instance_name):
             ref_node = corners[ref_key]
             
             # Create constraint
+            print(f"Creating constraint for corner {corner_key} with reference {ref_key}:")
+            print(f"  Corner node: {corner_node.instanceName}, {corner_node.label}")
             model.Equation(name=f'Corner_Constraint_{constraint_count}', 
-                          terms=((1.0, corner_node.instanceName, corner_node.label, 11), 
-                                (-1.0, ref_node.instanceName, ref_node.label, 11)))
+                          terms=((1.0, corner_node.instanceName, 11), 
+                                (-1.0, ref_node.instanceName, 11)))
             constraint_count += 1
     
     print(f"Created {constraint_count} corner constraints")
@@ -460,8 +402,8 @@ def create_film_periodic_constraints(model, assembly, instance_name):
             # Create constraints for matching nodes
             for i in range(min(len(edge_nodes), len(ref_nodes))):
                 model.Equation(name=f'X_Edge_Constraint_{constraint_count}', 
-                              terms=((1.0, edge_nodes[i].instanceName, edge_nodes[i].label, 11), 
-                                    (-1.0, ref_nodes[i].instanceName, ref_nodes[i].label, 11)))
+                              terms=((1.0, edge_nodes[i].instanceName, 11), 
+                                    (-1.0, ref_nodes[i].instanceName, 11)))
                 constraint_count += 1
                 edge_constraints += 1
     
@@ -487,8 +429,8 @@ def create_film_periodic_constraints(model, assembly, instance_name):
             # Create constraints for matching nodes
             for i in range(min(len(edge_nodes), len(ref_nodes))):
                 model.Equation(name=f'Y_Edge_Constraint_{constraint_count}', 
-                              terms=((1.0, edge_nodes[i].instanceName, edge_nodes[i].label, 11), 
-                                    (-1.0, ref_nodes[i].instanceName, ref_nodes[i].label, 11)))
+                              terms=((1.0, edge_nodes[i].instanceName, 11), 
+                                    (-1.0, ref_nodes[i].instanceName, 11)))
                 constraint_count += 1
                 edge_constraints += 1
     
@@ -570,20 +512,445 @@ def create_film_periodic_constraints(model, assembly, instance_name):
     print(f"Created {face_constraints} face constraints")
     print(f"Created a total of {constraint_count} periodic constraints for the thin film model")
     return constraint_count
+'''
+"""
+# Jonas version
+def create_film_periodic_constraints(model, assembly, instance_name):
+    #Create comprehensive periodic constraints for thin film (x and y periodic only)
+
+    tol = NODE_MATCH_TOLERANCE
+    instance = assembly.instances[instance_name]
+    
+    # Identify corners, edges, and faces
+    corners = {}
+    z_edges = {}  # Dictionary: (x, y) -> [nodes] (edges along z direction)
+    
+    print("Categorizing boundary nodes...")
+    
+    
+    corner_coords = [(0, 0, 0),
+                     (0, 0, CUBE_SIZE),
+                     (0, CUBE_SIZE, 0),
+                     (0, CUBE_SIZE, CUBE_SIZE),
+                     (CUBE_SIZE, 0, 0),
+                     (CUBE_SIZE, 0, CUBE_SIZE),
+                     (CUBE_SIZE, CUBE_SIZE, 0),
+                     (CUBE_SIZE, CUBE_SIZE, CUBE_SIZE)]
+    '''
+    half_side = CUBE_SIZE / 2
+    center = (half_side, half_side, half_side)
+    offsets = np.array(list(np.ndindex((2, 2, 2)))) * 2 - 1
+    offsets = offsets * half_side
+    '''
+    # Add the center coordinates to get the absolute corner positions
+    for ix, corner in enumerate(corner_coords):
+        # get the node by bounding sphere of each corner
+        node = instance.nodes.getByBoundingSphere(corner, tol)
+        corners[corner] = node
+        #print(f'Found corner node at {corner} (index {ix}): {node}')
+        # get the nodes by bounding cylinder of each edge in z-direction
+        if ix % 2 != 0:
+            previous_corner = corner_coords[ix-1]
+            nodes = instance.nodes.getByBoundingCylinder(corner, previous_corner, tol)
+            z_edges[corner] = []
+            for node in nodes:
+                if node not in corners.values():
+                    z_edges[corner].append(node)
+
+    
+    # Debug info
+    print(f"Found {len(corners)} corner nodes")
+    print(f"Found {len(z_edges)} z-direction edges")
+    
+    # Create constraint counter
+    constraint_count = 0
+    
+    # 1. Handle corners - map to their partners
+    print("Creating corner constraints...")
+    # Create sets for the reference corners
+    ref_key_z_min = (0, 0, 0)
+    ref_node_z_min = corners[ref_key_z_min]
+    corner_set_reference_z_min = f'corner_node_reference_z_min'
+    assembly.Set(name=corner_set_reference_z_min, nodes=ref_node_z_min)
+
+    ref_key_z_max = (0, 0, CUBE_SIZE)
+    ref_node_z_max = corners[ref_key_z_max]
+    corner_set_reference_z_max = f'corner_node_reference_z_max'
+    assembly.Set(name=corner_set_reference_z_max, nodes=ref_node_z_max)
+
+    for corner_key, corner_node in corners.items():
+        x, y, z = corner_key
+        
+        # Skip (x_min, y_min, z) corners (our reference corners)
+        if x == 0 and y == 0:
+            continue
+        if z == 0:
+            ref_set_name = corner_set_reference_z_min
+        else:
+            ref_set_name = corner_set_reference_z_max
+        # Create sets for the nodes
+        corner_set_name = f'corner_node_{constraint_count}_1'
+            
+        # Create set for corner node
+        assembly.Set(name=corner_set_name, nodes=corner_node)
+            
+        # Create set for ref node
+            
+        # Create constraint with properly referenced sets
+        model.Equation(name=f'Corner_Constraint_{constraint_count}', 
+                        terms=((1.0, corner_set_name, 11), 
+                            (-1.0, ref_set_name, 11)))
+        constraint_count += 1
+    
+    print(f"Created {constraint_count} corner constraints")
+    
+    # 2. Handle z-direction edges
+    print("Creating z-edge constraints...")
+    edge_constraints = 0
+    # Create a set for the reference edge
+    ref_key = (0, 0, CUBE_SIZE)
+    ref_nodes = z_edges[ref_key]
+    ref_set_name = f'z_edge_set_reference'
+    assembly.Set(name=ref_set_name, nodes=ref_nodes)    
+    for (x, y, z), edge_nodes in z_edges.items():
+        # Skip (0, 0, z) edge (reference edge)
+        if x == 0 and y == 0:
+            continue
+        '''    
+        # Create constraints for matching nodes
+        for i in range(len(ref_nodes)):
+            # Create sets for the nodes
+            edge_set_name = f'z_edge_node_{constraint_count}_1'
+            ref_set_name = f'z_edge_node_{constraint_count}_2'
+                
+            # Create set for edge node
+            assembly.Set(name=edge_set_name, nodes=mesh.MeshNodeArray([edge_nodes[i]]))
+                
+            # Create set for ref node
+            assembly.Set(name=ref_set_name, nodes=mesh.MeshNodeArray([ref_nodes[i]]))
+                
+            # Create constraint
+            model.Equation(name=f'Z_Edge_Constraint_{constraint_count}', 
+                            terms=((1.0, edge_set_name, 11), 
+                                (-1.0, ref_set_name, 11)))
+            constraint_count += 1
+            edge_constraints += 1
+        '''
+        # Create sets for the nodes
+        edge_set_name = f'z_edge_set_{constraint_count}'
+        assembly.Set(name=edge_set_name, nodes=edge_nodes)
+
+        # Create constraint
+        model.Equation(name=f'Z_Edge_Constraint_{constraint_count}', 
+                        terms=((1.0, edge_set_name, 11), 
+                            (-1.0, ref_set_name, 11)))
+        constraint_count += 1
+        edge_constraints += 1
+    
+    print(f"Created {edge_constraints} z_edge constraints")
+    
+    faces = create_face_node_sets(model, assembly, instance_name, corners, z_edges)
+    print(f"Found {len(faces)} faces with {len(faces.values()[0])} nodes in face {faces.keys()[0]}")
+    
+    print(f"Created a total of {constraint_count} periodic constraints for the thin film model")
+    return constraint_count
+"""
+def create_film_periodic_constraints(model, assembly, instance_name):
+    # Create comprehensive periodic constraints for thin film (x and y periodic only)
+
+    tol = NODE_MATCH_TOLERANCE
+    instance = assembly.instances[instance_name]
+    
+    # Identify corners, edges, and faces
+    corners = {}  # (corner_coordinates): node (corner nodes)
+    z_edges = {} # (ref_corner_coordinates): [nodes] (edges along z direction)
+    
+    print("Categorizing boundary nodes...")
+    
+    corner_coords = [(0, 0, 0),
+                     (0, 0, CUBE_SIZE),
+                     (0, CUBE_SIZE, 0),
+                     (0, CUBE_SIZE, CUBE_SIZE),
+                     (CUBE_SIZE, 0, 0),
+                     (CUBE_SIZE, 0, CUBE_SIZE),
+                     (CUBE_SIZE, CUBE_SIZE, 0),
+                     (CUBE_SIZE, CUBE_SIZE, CUBE_SIZE)]
+
+    for ix, corner in enumerate(corner_coords):
+        # get the node by bounding sphere of each corner
+        left_node = instance.nodes.getByBoundingSphere(corner, tol)
+        corners[corner] = left_node
+        #print(f'Found corner node at {corner} (index {ix}): {left_node}, {type(left_node)=}')
+        #print(f'{left_node[0]=}, {type(left_node[0])=}, {left_node[0].coordinates}')
+        # get the nodes by bounding cylinder of each edge in z-direction
+        if ix % 2 != 0:
+            cylinder_top = (corner[0], corner[1], CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE)
+            cylinder_bottom = (corner[0], corner[1], VOXEL_SIZE-NODE_MATCH_TOLERANCE)
+            nodes = instance.nodes.getByBoundingCylinder(cylinder_top, cylinder_bottom, tol)
+            z_edges[corner] = nodes
+            '''for node in nodes:
+                if node not in corners.values():
+                    z_edges[corner].append(node)'''
+
+    # Debug info
+    print(f"Found {len(corners)} corner nodes")
+    print(f"Found {len(z_edges)} z-direction edges")
+    
+    # Create constraint counter
+    edge_constraint_count = 0
+    edge_index = 0
+    # 1. Handle z-direction edges
+    print("Creating z-edge constraints...")
+    # Create a set for the reference edge
+    ref_key = (0, 0, CUBE_SIZE)
+    ref_edge_nodes = z_edges[ref_key]
+    for left_node in ref_edge_nodes:
+        #print(f'Reference edge node: {left_node.label} at {left_node.coordinates}')
+        assembly.Set(name=f'z_edge_node_reference_{left_node.label}', nodes=mesh.MeshNodeArray([left_node]))
+    for (x, y, z), edge_nodes in z_edges.items():
+        # Skip (0, 0, z) edge (reference edge)
+        if x == 0 and y == 0:
+            continue
+        for ix, edge_node in enumerate(edge_nodes):
+            ref_node_set = f'z_edge_node_reference_{ref_edge_nodes[ix].label}'
+            edge_node_set = f'z_edge_node_{edge_node.label}'
+            assembly.Set(name=edge_node_set, nodes=mesh.MeshNodeArray([edge_node]))
+            # Create constraint
+            model.Equation(name=f'Z_Edge_Constraint_{edge_index}_{edge_constraint_count}',
+                           terms=((1.0, edge_node_set, 11),
+                                  (-1.0, ref_node_set, 11)))
+            edge_constraint_count += 1
+        edge_index += 1
+    print(f"Created {edge_constraint_count} z_edge constraints")
+    print("Creating face constraints...")
+    face_constraint_count = 0
+    # front: y=0, back: y=CUBE_SIZE, left: x=0, right: x=CUBE_SIZE
+    faces = get_face_nodes(instance)
+    '''for ix, node in enumerate(faces['left']):
+        print(f"Left face node: {node.label} at {node.coordinates}")
+        right_node = faces['right'][ix]
+        print(f"Right face node: {right_node.label} at {right_node.coordinates}")
+    for ix, node in enumerate(faces['front']):
+        print(f"Front face node: {node.label} at {node.coordinates}")
+        right_node = faces['back'][ix]
+        print(f"Back face node: {right_node.label} at {right_node.coordinates}")'''
+    for ix, left_node in enumerate(faces['left']):
+        left_node_set = f'left_face_node_{left_node.label}'
+        assembly.Set(name=left_node_set, nodes=mesh.MeshNodeArray([left_node]))
+        right_node = faces['right'][ix]
+        right_node_set = f'right_face_node_{right_node.label}'
+        assembly.Set(name=right_node_set, nodes=mesh.MeshNodeArray([right_node]))
+        model.Equation(name=f'Face_Constraint_L{left_node.label}_R{right_node.label}',
+                       terms=((1.0, left_node_set, 11),
+                              (-1.0, right_node_set, 11)))
+        face_constraint_count += 1
+    for ix, front_node in enumerate(faces['front']):
+        front_node_set = f'front_face_node_{front_node.label}'
+        assembly.Set(name=front_node_set, nodes=mesh.MeshNodeArray([front_node]))
+        back_node = faces['back'][ix]
+        back_node_set = f'back_face_node_{back_node.label}'
+        assembly.Set(name=back_node_set, nodes=mesh.MeshNodeArray([back_node]))
+        model.Equation(name=f'Face_Constraint_F{front_node.label}_B{back_node.label}',
+                       terms=((1.0, front_node_set, 11),
+                              (-1.0, back_node_set, 11)))
+        face_constraint_count += 1
+    print(f"Created {face_constraint_count} face constraints")
+    return edge_constraint_count + face_constraint_count
+
+def get_face_nodes(instance):
+    """Create node sets for each face of the cuboid for periodic boundary conditions"""
+        # Define the six faces of the cuboid
+    faces = {
+        'left': instance.nodes.getByBoundingBox(
+            xMin=-NODE_MATCH_TOLERANCE, 
+            xMax=NODE_MATCH_TOLERANCE,
+            yMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            yMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE,
+            zMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            zMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE),
+        'right': instance.nodes.getByBoundingBox(
+            xMin=CUBE_SIZE-NODE_MATCH_TOLERANCE, 
+            xMax=CUBE_SIZE+NODE_MATCH_TOLERANCE,
+            yMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            yMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE,
+            zMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            zMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE),
+        'front': instance.nodes.getByBoundingBox(
+            xMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            xMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE,
+            yMin=-NODE_MATCH_TOLERANCE, 
+            yMax=NODE_MATCH_TOLERANCE,
+            zMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            zMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE),
+        'back': instance.nodes.getByBoundingBox(
+            xMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            xMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE,
+            yMin=CUBE_SIZE-NODE_MATCH_TOLERANCE, 
+            yMax=CUBE_SIZE+NODE_MATCH_TOLERANCE,
+            zMin=VOXEL_SIZE-NODE_MATCH_TOLERANCE, 
+            zMax=CUBE_SIZE-VOXEL_SIZE+NODE_MATCH_TOLERANCE),
+        }
+    return faces
+        
+
+# ===== ADD FIELD OUTPUT REQUEST =====
+def create_output_requests(model):
+    """Add field output request for flux data (proper way for mass diffusion)"""
+    # For mass diffusion analysis, we should request FLUC and NJFLUX variables
+    model.FieldOutputRequest(name='F-Output-1',
+                             createStepName='DiffusionStep',
+                             variables=('CONC', 'NNC', 'MFL', 'MFLT'),
+                             frequency=OUTPUT_FREQUENCY)
+    model.HistoryOutputRequest(name='H-Output-1',
+                               createStepName='DiffusionStep',
+                               variables=('CONC', 'NNC', 'MFL', 'MFLT'),
+                               region=model.rootAssembly.sets['BOTTOM_FACE_NODES'])
+
+def create_additional_node_sets(model, assembly, instance_name):
+    """Create additional node sets for flux measurement"""
+    instance = assembly.instances[instance_name]
+    
+    # Create a node set for the top face for flux measurements
+    bottom_nodes = instance.nodes.getByBoundingBox(
+        xMin=float(-NODE_MATCH_TOLERANCE), 
+        xMax=float(CUBE_SIZE+NODE_MATCH_TOLERANCE),
+        yMin=float(-NODE_MATCH_TOLERANCE), 
+        yMax=float(CUBE_SIZE+NODE_MATCH_TOLERANCE),
+        zMin=float(-NODE_MATCH_TOLERANCE), 
+        zMax=float(+NODE_MATCH_TOLERANCE))
+    assembly.Set(nodes=bottom_nodes, name='BOTTOM_FACE_NODES')
+    print(f"Created TOP_FACE_NODES set with {len(bottom_nodes)} nodes for flux measurement")
+    
+    # Create a surface for the top face
+    bottom_face = instance.faces.getByBoundingBox(
+        xMin=float(-NODE_MATCH_TOLERANCE), 
+        xMax=float(CUBE_SIZE+NODE_MATCH_TOLERANCE),
+        yMin=float(-NODE_MATCH_TOLERANCE), 
+        yMax=float(CUBE_SIZE+NODE_MATCH_TOLERANCE),
+        zMin=float(-NODE_MATCH_TOLERANCE), 
+        zMax=float(+NODE_MATCH_TOLERANCE))
+    assembly.Surface(side1Faces=bottom_face, name='BOTTOM_FACE_SURFACE')
+    print(f"Created TOP_FACE_SURFACE with {len(bottom_face)} faces for flux measurement")
+
+# ======= FLUX VISUALIZATION  =======
+
+'''def extract_flux_data(odb_path):
+    """
+    Extract flux data at the top face from the Abaqus ODB file
+    
+    Args:
+        odb_path (str): Path to the output database file
+    
+    Returns:
+        tuple: (time_points, avg_flux_values) arrays for plotting
+    """
+    try:
+        # Open the output database
+        print(f"Opening ODB file: {odb_path}")
+        odb = openOdb(path=odb_path, readOnly=True)
+        
+        # Get step data
+        step = odb.steps['DiffusionStep']
+        
+        # Get the top face set from the assembly
+        top_face_set = odb.rootAssembly.nodeSets['TOP_FACE_NODES']
+        
+        # Collect time and flux data
+        time_points = []
+        avg_flux_values = []
+        
+        # Loop through all frames
+        print("Extracting flux data from frames...")
+        for frame_idx, frame in enumerate(step.frames):
+            # Get the frame time
+            time = frame.frameValue
+            time_points.append(time)
+            
+            # Get NJFLUX (nodal mass flux) field output
+            if 'MFL' in frame.fieldOutputs:
+                flux_field = frame.fieldOutputs['MFL']
+                
+                # Get flux values for the top face
+                top_flux = flux_field.getSubset(region=top_face_set)
+                
+                # We're interested in the z-component of flux (index 2) at the top face
+                z_flux_values = [value.data[2] for value in top_flux.values]
+                
+                # Calculate average flux
+                avg_flux = sum(z_flux_values) / len(z_flux_values)
+                avg_flux_values.append(avg_flux)
+            else:
+                print(f"Warning: MFL not found in frame {frame_idx}")
+                avg_flux_values.append(0.0)
+        
+        # Close the ODB
+        odb.close()
+        
+        return np.array(time_points), np.array(avg_flux_values)
+    except Exception as e:
+        print(f"Error in extract_flux_data: {str(e)}")
+        traceback.print_exc()
+        return np.array([]), np.array([])
+
+def create_flux_plot(time_points, flux_values, output_path):
+    """
+    Create and save a plot of flux vs time
+    
+    Args:
+        time_points (np.array): Array of time points
+        flux_values (np.array): Array of flux values
+        output_path (str): Path to save the plot
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(time_points, flux_values, 'b-', linewidth=2)
+    plt.xlabel('Time (s)', fontsize=12)
+    plt.ylabel('Average Flux (mass/area/time)', fontsize=12)
+    plt.title('Mass Flux through Top Surface vs Time', fontsize=14)
+    plt.grid(True)
+    
+    # Add annotations for interesting points
+    max_idx = np.argmax(np.abs(flux_values))
+    plt.annotate(f'Max Flux: {flux_values[max_idx]:.3e}',
+                xy=(time_points[max_idx], flux_values[max_idx]),
+                xytext=(time_points[max_idx] * 0.8, flux_values[max_idx] * 1.2),
+                arrowprops=dict(facecolor='black', shrink=0.05, width=1.5))
+    
+    # Add steady-state annotation if reached
+    if len(time_points) > 10:
+        steady_state_value = flux_values[-1]
+        plt.axhline(y=steady_state_value, color='r', linestyle='--', alpha=0.7)
+        plt.annotate(f'Steady State: {steady_state_value:.3e}',
+                    xy=(time_points[-1], steady_state_value),
+                    xytext=(time_points[-1] * 0.7, steady_state_value * 1.1),
+                    arrowprops=dict(facecolor='red', shrink=0.05, width=1.5))
+    
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    print(f"Flux plot saved to: {output_path}")
+    
+    # Also save data to a CSV file for further analysis
+    csv_path = output_path.replace('.png', '.csv')
+    np.savetxt(csv_path, np.column_stack((time_points, flux_values)), 
+              delimiter=',', header='Time(s),Flux(mass/area/time)', comments='')
+    print(f"Flux data saved to: {csv_path}")
+    
+    return plt.gcf()  # Return the figure for potential display
+'''
 
 # ====== MAIN MODEL CREATION ======
 def create_voxelized_diffusion_model():
     """Create the voxelized cuboid model for diffusion analysis with spherical inclusions"""
     # Start a new model
-    #Mdb()
     model = mdb.Model(name='VoxelizedDiffusionModel')
+    if 'Model-1' in mdb.models.keys():
+        del mdb.models['Model-1']
     
     # Create the main cuboid part
     s = model.ConstrainedSketch(name='cuboid_sketch', sheetSize=200.0)
-    s.rectangle(point1=(0.0, 0.0), point2=(MODEL_LENGTH, MODEL_WIDTH))
+    s.rectangle(point1=(0.0, 0.0), point2=(CUBE_SIZE, CUBE_SIZE))
     cuboid_part = model.Part(name='Cuboid', dimensionality=THREE_D, type=DEFORMABLE_BODY)
-    cuboid_part.BaseSolidExtrude(sketch=s, depth=MODEL_HEIGHT)
-    
+    cuboid_part.BaseSolidExtrude(sketch=s, depth=CUBE_SIZE)
+   
     # Read inclusion data
     inclusions, radii = read_inclusion_data(CSV_FILE_PATH)
     print(f"Loaded {len(inclusions)} inclusions from CSV with {len(radii)} unique radii")
@@ -609,17 +976,18 @@ def create_voxelized_diffusion_model():
     assign_elements_to_inclusions(cuboid_part, cuboid_instance, inclusions, radii)
     
     # Create a mass diffusion step
-    model.MassDiffusionStep(name='DiffusionStep', 
-                           previous='Initial',
-                           timePeriod=TOTAL_TIME, 
-                           maxNumInc=100000,
-                           initialInc=INITIAL_TIME_INCREMENT,
-                           minInc=MIN_TIME_INCREMENT,
-                           maxInc=MAX_TIME_INCREMENT,
-                           dcmax=DCMAX)  # Maximum concentration change per increment
+    model.MassDiffusionStep(name='DiffusionStep',
+                            previous='Initial',
+                            initialInc=float(INITIAL_TIME_INCREMENT),
+                            timePeriod=float(TOTAL_TIME),
+                            maxNumInc=100000,
+                            minInc=float(MIN_TIME_INCREMENT),
+                            maxInc=float(MAX_TIME_INCREMENT),
+                            dcmax=float(DCMAX),
+                            end=STEADY_STATE_THRESHOLD)  # Maximum concentration change per increment
     
     # Apply face sets for boundary conditions
-    apply_periodic_boundary_conditions(model, assembly, instance_name)
+    #create_face_sets(assembly, instance_name)
     
     # Create periodic boundary conditions with special treatment for edges and corners
     if PERIODIC_X_Y:
@@ -632,51 +1000,80 @@ def create_voxelized_diffusion_model():
     # Define concentration boundary conditions
     # Bottom face with concentration = 0
     bottom_face = assembly.instances[instance_name].faces.getByBoundingBox(
-        xMin=-0.1, yMin=-0.1, zMin=-0.1,
-        xMax=MODEL_LENGTH+0.1, yMax=MODEL_WIDTH+0.1, zMax=0.1)
+        xMin=float(-0.1), yMin=float(-0.1), zMin=float(-0.1),
+        xMax=float(CUBE_SIZE+0.1), yMax=float(CUBE_SIZE+0.1), zMax=float(0.1))
     assembly.Set(faces=bottom_face, name='Bottom_Face')
     model.ConcentrationBC(name='Bottom_Concentration', 
                          createStepName='DiffusionStep',
                          region=assembly.sets['Bottom_Face'],
-                         magnitude=BOTTOM_CONCENTRATION,
+                         magnitude=float(BOTTOM_CONCENTRATION),
                          distributionType=UNIFORM)
     
     # Top face with concentration = TOP_CONCENTRATION
     top_face = assembly.instances[instance_name].faces.getByBoundingBox(
-        xMin=-0.1, yMin=-0.1, zMin=MODEL_HEIGHT-0.1,
-        xMax=MODEL_LENGTH+0.1, yMax=MODEL_WIDTH+0.1, zMax=MODEL_HEIGHT+0.1)
+        xMin=float(-0.1), yMin=float(-0.1), zMin=float(CUBE_SIZE-0.1),
+        xMax=float(CUBE_SIZE+0.1), yMax=float(CUBE_SIZE+0.1), zMax=float(CUBE_SIZE+0.1))
     assembly.Set(faces=top_face, name='Top_Face')
     model.ConcentrationBC(name='Top_Concentration', 
                          createStepName='DiffusionStep',
                          region=assembly.sets['Top_Face'],
-                         magnitude=TOP_CONCENTRATION,
+                         magnitude=float(TOP_CONCENTRATION),
                          distributionType=UNIFORM)
     
     # Set initial conditions (zero concentration throughout)
     all_nodes = assembly.instances[instance_name].nodes
     assembly.Set(nodes=all_nodes, name='All_Nodes')
-    
     # Create initial concentration field
     model.Temperature(name='Initial_Concentration',
                      createStepName='Initial', 
                      region=assembly.sets['All_Nodes'],
                      distributionType=UNIFORM, 
                      crossSectionDistribution=CONSTANT_THROUGH_THICKNESS,
-                     magnitudes=(0.0,))
+                     magnitudes=(float(0.0),))  
     
-    # Define output requests with correct variables for mass diffusion analysis
-    model.FieldOutputRequest(name='F-Output-1',
-                            createStepName='DiffusionStep',
-                            variables=('CONC', 'NT'),
-                            frequency=OUTPUT_FREQUENCY)
+    # Create node sets for flux measurement
+    create_additional_node_sets(model, assembly, instance_name)
     
+    # Add field output request for flux (instead of history output)
+    create_output_requests(model)
+
     # Save the model
     mdb.saveAs(OUTPUT_CAE_PATH)
     print("Diffusion model with periodic boundary conditions created successfully!")
+    
+    # Run the job and create a plot if successful
+    try:
+        # Create and submit the job
+        job_name = 'VoxelizedDiffusionModel_Job'
+        myJob = mdb.Job(name=job_name, model=model.name, description='Diffusion analysis with flux extraction')
+        #print(f"Submitting job: {job_name}")
+        #myJob.submit()
+        #session.jobManager.showMonitor()
+        #myJob.waitForCompletion()
+        
+        # Check if job completed successfully
+        '''if myJob.status == COMPLETED and False:
+            print("Job completed successfully, extracting flux data...")
+            # Extract flux data and create plot
+            odb_path = f"{job_name}.odb"
+            time_points, flux_values = extract_flux_data(odb_path)
+            
+            if len(time_points) > 0:
+                create_flux_plot(time_points, flux_values, f"{WORKING_DIRECTORY}/flux_vs_time.png")
+                print("Flux analysis completed and plot generated!")
+            else:
+                print("No flux data was extracted, check logs for errors.")
+        else:
+            print(f"Job did not complete successfully. Status: {mdb.jobs[job_name].status}")'''
+    except Exception as e:
+        print(f"Error running job or creating flux plot: {str(e)}")
+        traceback.print_exc()
+    
 
 # Execute the main function when script is run
 if __name__ == "__main__":
     try:
         create_voxelized_diffusion_model()
     except Exception as e:
+        print(f"Error in main execution: {str(e)}")
         traceback.print_exc()

@@ -1,0 +1,278 @@
+1
+
+   Abaqus 2024                                  Date 07-Apr-2025   Time 14:39:25
+   For use by RWTH AACHEN UNIVERSITY under license from Dassault Systemes or its subsidiary.
+
+
+
+                         The Abaqus Software is a product of:
+
+                           Dassault Systemes SIMULIA Corp.
+                           1301 Atwood Avenue, Suite 101W
+                              Johnston, RI 02919, USA
+ 
+
+
+                   The Abaqus Software is available only under license
+                   from Dassault Systemes or its subsidiary and may be
+                   used or reproduced only in accordance with the terms
+                   of such license.
+ 
+                          On machine PlasmaPower 
+                          you are authorized to run
+                          Abaqus/Standard until 30-Apr-2026
+
+                          Your site id is: 200000000006963 
+
+
+ 
+                    For assistance or any other information you may
+                    obtain contact information for your local office
+                    from the world wide web at:
+
+                      https://www.3ds.com/products-services/simulia/services-support/
+
+ 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+                *                                                         * 
+                *                   *****************                     * 
+                *                   *  N O T I C E  *                     * 
+                *                   *****************                     * 
+                *                                                         * 
+                *                                                         * 
+                *                       Abaqus 2024                       * 
+                *                                                         * 
+                *       BUILD ID: 2023_09_21-14.55.25 RELr426 190762      * 
+                *                                                         * 
+                *                                                         * 
+                *  Please make sure you are using                         * 
+                *  release Abaqus 2024 manuals                            * 
+                *  plus the notes accompanying this release.              * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *   This program may not be used for commercial purposes  * 
+                *           without payment of a commercial fee.          * 
+                *                                                         * 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+
+
+ 
+
+
+
+     PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   *******************************************************
+
+
+     END PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   ***********************************************************
+
+
+
+
+     OPTIONS BEING PROCESSED
+   ***************************
+
+
+  *Heading
+  *Element, type=DC3D8
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_0
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_1
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_2
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_3
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_4
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_5
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_7
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_8
+  *Elset, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_9
+  *Elset, elset=ASSEMBLY_CUBOID-1_MATRIX_SET
+  *Elset, elset=ASSEMBLY_CUBOID-1__I1
+  *Elset, elset=ASSEMBLY_BACK_FACE_SET
+  *Elset, elset=ASSEMBLY_BOTTOM_FACE
+  *Elset, elset=ASSEMBLY_FRONT_FACE_SET
+  *Elset, elset=ASSEMBLY_LEFT_FACE_SET
+  *Elset, elset=ASSEMBLY_RIGHT_FACE_SET
+  *Elset, elset=ASSEMBLY_TOP_FACE
+  *Elset, elset=ASSEMBLY__TOP_FACE_SURFACE_S3
+  *material, name=INCLUSION_MATERIAL_0_27
+  *diffusivity
+  *solubility
+  *material, name=INCLUSION_MATERIAL_1_23
+  *diffusivity
+  *solubility
+  *material, name=MATRIX_MATERIAL
+  *diffusivity
+  *solubility
+  *initialconditions, type=TEMPERATURE
+  *solidsection, elset=ASSEMBLY_CUBOID-1__I1, material=MATRIX_MATERIAL
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_7, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_4, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_9, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_0, material=INCLUSION_MATERIAL_1_23
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_3, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_1, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_5, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_2, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_8, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1__I1, material=MATRIX_MATERIAL
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_7, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_4, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_9, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_0, material=INCLUSION_MATERIAL_1_23
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_3, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_1, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_5, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_2, material=INCLUSION_MATERIAL_0_27
+  *solidsection, elset=ASSEMBLY_CUBOID-1_INCLUSION_SET_8, material=INCLUSION_MATERIAL_0_27
+  *surface, type=ELEMENT, name=ASSEMBLY_TOP_FACE_SURFACE
+  *surface, type=ELEMENT, name=ASSEMBLY_TOP_FACE_SURFACE
+  *initialconditions, type=TEMPERATURE
+  *boundary
+  *boundary
+  *boundary
+  *boundary
+  *surface, type=ELEMENT, name=ASSEMBLY_TOP_FACE_SURFACE
+  *output, field, frequency=10
+  *output, history, variable=PRESELECT
+  *elementoutput, directions=YES
+  *initialconditions, type=TEMPERATURE
+  *output, field, frequency=10
+  *output, history, variable=PRESELECT
+  *elementoutput, directions=YES
+  *initialconditions, type=TEMPERATURE
+  *output, field, frequency=10
+  *output, history, variable=PRESELECT
+  *elementoutput, directions=YES
+  *Step, name=DiffusionStep, nlgeom=NO, inc=100000
+  *output, field, frequency=10
+  *output, history, variable=PRESELECT
+  *Step, name=DiffusionStep, nlgeom=NO, inc=100000
+  *Step, name=DiffusionStep, nlgeom=NO, inc=100000
+  *massdiffusion, end=SS, dcmax=0.8
+  *boundary
+  *boundary
+  *output, field, frequency=10
+  *nodeoutput
+  *elementoutput, directions=YES
+  *output, history, variable=PRESELECT
+  *endstep
+
+ ***WARNING: OUTPUT REQUEST MFLT IS NOT AVAILABLE FOR THIS TYPE OF ANALYSIS
+  *Step, name=DiffusionStep, nlgeom=NO, inc=100000
+  *massdiffusion, end=SS, dcmax=0.8
+  *boundary
+  *boundary
+  *endstep
+
+
+
+                            P R O B L E M   S I Z E
+
+
+          NUMBER OF ELEMENTS IS                                 15625
+          NUMBER OF NODES IS                                    17576
+          NUMBER OF NODES DEFINED BY THE USER                   17576
+          TOTAL NUMBER OF VARIABLES IN THE MODEL                17576
+          (DEGREES OF FREEDOM PLUS MAX NO. OF ANY LAGRANGE MULTIPLIER
+           VARIABLES. INCLUDE *PRINT,SOLVE=YES TO GET THE ACTUAL NUMBER.)
+
+
+
+                              END OF USER INPUT PROCESSING
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =      1.2    
+       SYSTEM TIME (SEC)    =     0.10    
+       TOTAL CPU TIME (SEC) =      1.3    
+       WALLCLOCK TIME (SEC) =            2
+1
+
+   Abaqus 2024                                  Date 07-Apr-2025   Time 14:39:30
+   For use by RWTH AACHEN UNIVERSITY under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    1  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       1     T R A N S I E N T   M A S S   D I F F U S I O N
+
+
+                                                                                          
+
+     AUTOMATIC TIME CONTROL WITH -
+          A SUGGESTED INITIAL TIME INCREMENT OF                 10.0    
+          AND A TOTAL TIME PERIOD OF                           1.000E+05
+          THE MINIMUM TIME INCREMENT ALLOWED IS                1.000E-05
+          THE MAXIMUM TIME INCREMENT ALLOWED IS                 100.    
+
+     THE SIZE OF THE TIME INCREMENT IS CONTROLLED BY -
+          THE NORMALIZED CONCENTRATION CHANGE PER INCREMENT NOT EXCEEDING   0.800    
+
+          THE ANALYSIS WILL TERMINATE IF THE NORMALIZED
+          CONCENTRATION CHANGE RATE IN AN INCREMENT IS LESS THAN             1.000E-02
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.87E+09               35                132
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+
+
+                    STEADY STATE CONDITION HAS BEEN REACHED
+                    THE LARGEST NORMALIZED CONCENTRATION CHANGE PER UNIT TIME 
+                    DURING THIS INCREMENT WAS   9.874E-03
+
+
+          THE ANALYSIS HAS BEEN COMPLETED
+
+
+
+                              ANALYSIS COMPLETE
+                              WITH      1 WARNING MESSAGES ON THE DAT FILE
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =     5.75E+02
+       SYSTEM TIME (SEC)    =      85.    
+       TOTAL CPU TIME (SEC) =     6.60E+02
+       WALLCLOCK TIME (SEC) =           67
